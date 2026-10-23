@@ -10,6 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Make sure main.py exists
+        run: |
+          ls -la
+          if [ ! -f main.py ] && [ -f main-1.py ]; then
+            cp main-1.py main.py
+            echo "Copied main-1.py to main.py"
+          fi
+          test -f main.py || { echo "No main.py found"; exit 1; }
+          head -1 main.py
+          grep -q "Trading Floor" main.py || { echo "main.py is not the Trading Floor version"; exit 1; }
+          test -f floor.py || { echo "floor.py is missing"; exit 1; }
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
