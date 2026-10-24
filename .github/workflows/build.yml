@@ -1,0 +1,61 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use the newest main.py and floor.py
+        run: |
+          pick() {
+            base="$1"; best=""; bt=0
+            for f in ${base}.py ${base}-*.py; do
+              [ -f "$f" ] || continue
+              t=$(git log -1 --format=%ct -- "$f")
+              if [ "$t" -ge "$bt" ]; then best="$f"; bt="$t"; fi
+            done
+            [ -n "$best" ] || { echo "No ${base}.py found"; exit 1; }
+            echo "${base}: using $best"
+            if [ "$best" != "${base}.py" ]; then cp "$best" "${base}.py"; fi
+          }
+          ls -la
+          pick main
+          pick floor
+          head -1 main.py
+          grep -q "Trading Floor v3" main.py || { echo "main.py is not the v3 version"; exit 1; }
+          grep -q "def make_instrument" floor.py || { echo "floor.py is not the v3 version"; exit 1; }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config libffi-dev libltdl-dev libssl-dev libncurses-dev build-essential ccache
+
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade pip
+          pip install buildozer "cython<3.1" setuptools
+
+      - name: Build APK
+        run: buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nifty-signal-apk
+          path: bin/*.apk
